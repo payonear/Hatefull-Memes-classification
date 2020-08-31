@@ -1,5 +1,4 @@
 import pandas as pd
-from pathlib import Path
 import ujson as json
 import collections
 import os
@@ -25,9 +24,6 @@ class Extr_json:
         return collections.OrderedDict(row)
 
     def __read_data(self, file):
-        _, filename = os.path.split(file)
-        total_records = self.files.get(filename)
-        
         with open(file) as fin:
             for line in fin:
                 yield json.loads(line) 

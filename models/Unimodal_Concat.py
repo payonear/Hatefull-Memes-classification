@@ -19,7 +19,7 @@ def Unimodal_Concat(nn.Module):
         self.fc2 = nn.Linear(cat_dim, num_classes)
         self.dropout = nn.Dropout(dropout)
     
-    def forward(self, img, txt, label=None):
+    def forward(self, img, txt):
         image_features = nn.ReLU(vision_module(img))
         txt_features = nn.ReLU(lang_module(txt))
         cat = torch.cat([image_features,txt_features], dim=1)

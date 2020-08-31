@@ -17,7 +17,7 @@ def Unimodal_Concat(nn.Module):
         self.lang_module = lang_module
         self.fc1 = nn.Linear(vis_dim+lang_dim, cat_dim)
         self.fc2 = nn.Linear(cat_dim, num_classes)
-        self.dropout(dropout)
+        self.dropout = nn.Droput(dropout)
     
     def forward(self, img, txt, label=None):
         image_features = nn.ReLU(vision_module(img))

@@ -1,9 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import json
 import pandas as pd
-import numpy as np
 
 class HatefulMemesDataset(Dataset):
     def __init__(self,
@@ -46,7 +44,7 @@ class HatefulMemesDataset(Dataset):
         image = Image.open(self.sample_frame.loc(idx,'img')).convert('RGB')
         image = self.img_transform(image)
         text = self.sample_frame.loc[idx, 'text']
-        text = self.txt_transform(text) # depends on transform
+        text = self.txt_transform(text)
         if 'label' in self.sample_frame.columns:
             label = self.sample_frame.loc(idx, 'label')
             label = torch.Tensor(label).long().squeeze()

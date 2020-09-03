@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from utils import dataset
+from utils.dataset import *
 from pathlib import Path
 from tqdm import tqdm
 
@@ -32,7 +32,7 @@ class HatefulMemesModel(pl.LightningModule):
         return self.model(img, txt, label)
 
     def training_step(self, batch, batch_idx):
-        pred, loss = self.forward(
+        _, loss = self.forward(
             batch['image'],
             batch['text'],
             batch['label']
@@ -40,7 +40,7 @@ class HatefulMemesModel(pl.LightningModule):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        pred, loss = self.eval().forward(
+        _, loss = self.eval().forward(
             batch['image'],
             batch['text'],
             batch['label']
@@ -61,7 +61,6 @@ class HatefulMemesModel(pl.LightningModule):
                                                 T_max=self.hparams.get('max_epochs',10))]
         return optimizer, scheduler
 
-    @pl.data_loader
     def train_dataloader(self):
         loader = DataLoader(self.train_dataset,
             batch_size = self.hparams.get('batch_size', 8),
@@ -70,7 +69,6 @@ class HatefulMemesModel(pl.LightningModule):
         )
         return loader
 
-    @pl.data_loader
     def val_dataloader(self):
         loader = DataLoader(self.val_dataset,
             batch_size = self.hparams.get('batch_size', 8),
@@ -91,7 +89,7 @@ class HatefulMemesModel(pl.LightningModule):
         img_path = self.hparams.get('img_path')
         balance = (self.hparams.get('balance', False) 
                     if 'train' in str(key) else False)
-        random_state self.hparams.get('random_state', 0)
+        random_state = self.hparams.get('random_state', 0)
         dataset = HatefulMemesDataset(data_path,
                                     img_path,
                                     self.img_transform,

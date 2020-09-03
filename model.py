@@ -5,8 +5,9 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from utils import dataset
 from pathlib import Path
+from tqdm import tqdm
 
-def HatefulMemesModel(pl.LightningModule):
+class HatefulMemesModel(pl.LightningModule):
     def __init__(self, hparams):
         keys = ['model', 'train_path', 'dev_path', 'test_path', 
                 'img_path', 'img_transform', 'txt_transform']
@@ -141,4 +142,20 @@ def HatefulMemesModel(pl.LightningModule):
 
     @torch.no_grad()
     def make_submission(self, path):
-        pass
+        test_dataset = self.__build_dataset('test_path')
+        loader = DataLoader(self.test_dataset,
+            batch_size = self.hparams.get('batch_size', 8),
+            shuffle = False,
+            num_workers = self.hparams.get('num_workers ', 4)
+        )
+        submission = pd.DataFrame(index = test_dataset.sample_frame.id,
+                                columns = ['proba','label'])
+        for batch in tqdm(loader, total = len(loader)):
+            preds, _ = self.model.eval().to('cpu')(
+                batch['image'], batch['text']
+            )
+            submission.loc[batch['id'], 'proba'] = preds[:,1]
+            submission.loc[batch['id'], 'label'] = preds.argmax(dim=1)
+            submission.proba = submission.proba.astype(float)
+            submission.label = submission.proba.astype(int)
+            return submission

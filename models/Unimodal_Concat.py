@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-def Unimodal_Concat(nn.Module):
+class Unimodal_Concat(nn.Module):
     def __init__(self,
                 vision_module,
                 lang_module,

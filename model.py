@@ -6,6 +6,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from utils.dataset import *
 from pathlib import Path
 from tqdm import tqdm
+import numpy as np
+import random
 
 class HatefulMemesModel(pl.LightningModule):
     def __init__(self, hparams):
@@ -18,6 +20,7 @@ class HatefulMemesModel(pl.LightningModule):
         super(HatefulMemesModel,self).__init__()
         self.hparams = hparams
         self.model = self.hparams.get('model')
+        self.model.to(self.hparams.get('device', 'cpu'))
         self.img_transform = self.hparams.get('img_transform')
         self.txt_transform = self.hparams.get('txt_transform')
         self.train_dataset = self.__build_dataset('train_path')
@@ -32,40 +35,49 @@ class HatefulMemesModel(pl.LightningModule):
         return self.model(img, txt, label)
 
     def training_step(self, batch, batch_idx):
+        device = self.hparams.get('device', 'cpu')
         _, loss = self.forward(
-            batch['image'],
-            batch['text'],
-            batch['label']
+            batch['image'].to(device),
+            batch['text'].to(device),
+            batch['label'].to(device)
         )
         return {'loss': loss}
 
+    def training_epoch_end(self, outputs):
+            avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+            return {'avg_train_loss': avg_loss,
+                    'progress_bar': {'avg_train_loss': avg_loss},
+                    'log': {'avg_train_loss': avg_loss}
+            }
     def validation_step(self, batch, batch_idx):
+        device = self.hparams.get('device', 'cpu')
         _, loss = self.eval().forward(
-            batch['image'],
-            batch['text'],
-            batch['label']
+            batch['image'].to(device),
+            batch['text'].to(device),
+            batch['label'].to(device)
         )
         return {'val_loss': loss}
 
-    def validation_end(self, outputs):
+    def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         return {'avg_val_loss': avg_loss,
                 'progress_bar': {'avg_val_loss': avg_loss},
                 'log': {'avg_val_loss': avg_loss}
         }
 
-    def optim_config(self):
+    def configure_optimizers(self):
         optimizer = [optim.Adam(self.model.parameters(), 
                     lr=self.hparams.get('lr', 1e-3))]
         scheduler = [optim.lr_scheduler.CosineAnnealingLR(optimizer[0], 
-                                                T_max=self.hparams.get('max_epochs',10))]
+                                               T_max=self.hparams.get('max_epochs',10))]
         return optimizer, scheduler
 
     def train_dataloader(self):
         loader = DataLoader(self.train_dataset,
             batch_size = self.hparams.get('batch_size', 8),
-            shuffle = True,
-            num_workers = self.hparams.get('num_workers ', 4)
+            shuffle = self.hparams.get('shuffle', True),
+            num_workers = self.hparams.get('num_workers', 4),
+            pin_memory= self.hparams.get('pin_memory', False)
         )
         return loader
 
@@ -73,7 +85,8 @@ class HatefulMemesModel(pl.LightningModule):
         loader = DataLoader(self.val_dataset,
             batch_size = self.hparams.get('batch_size', 8),
             shuffle = False,
-            num_workers = self.hparams.get('num_workers ', 4)
+            num_workers = self.hparams.get('num_workers', 4),
+            pin_memory= self.hparams.get('pin_memory', False)
         )
         return loader
 
@@ -97,20 +110,18 @@ class HatefulMemesModel(pl.LightningModule):
                                     balance,
                                     random_state
         )
-        return dataset
-    
+        return dataset    
 
     def fit(self):
-        self._set_seed(self.hparams.get('random_state', 17))
+        self.__set_seed(self.hparams.get('random_state', 17))
         self.trainer = pl.Trainer(**self.trainer_params)
         self.trainer.fit(self)
 
     def __get_trainer_params(self):
         checkpoint_callback = ModelCheckpoint(
                             filepath=self.output_path,
-                            save_best_only=self.hparams.get('save_best_only', True),
                             verbose=self.hparams.get('verbose', True),
-                            monitor='avg_val_loss',
+                            monitor=self.hparams.get('monitor', 'avg_val_loss'),
                             mode='min',
                             prefix=self.hparams.get('prefix', ''),
                         )
@@ -126,15 +137,20 @@ class HatefulMemesModel(pl.LightningModule):
 
         trainer_params = {
             'checkpoint_callback': checkpoint_callback,
-            'early_stop_callback': early_stop_callback,
+            'early_stop_callback': self.hparams.get(
+                'early_stop_callback', early_stop_callback),
             'gradient_clip_val': self.hparams.get(
-                "gradient_clip_value", 1),
+                "gradient_clip_val", 1),
             'gpus': self.hparams.get('gpus', 1),
-            'overfit_batches': self.hparams.get(
-                'overfit_batches', 0.0),
+            'overfit_pct': self.hparams.get(
+                'overfit_pct', None),
             'max_epochs': self.hparams.get(
                 'max_epochs', 10),
-            'default_save_path': self.output_path
+            'default_root_dir': self.output_path,
+            'fast_dev_run': self.hparams.get(
+                'fast_dev_run', False),
+            'logger': self.hparams.get(
+                'logger', False)
         }
         return trainer_params
 
@@ -156,4 +172,5 @@ class HatefulMemesModel(pl.LightningModule):
             submission.loc[batch['id'], 'label'] = preds.argmax(dim=1)
             submission.proba = submission.proba.astype(float)
             submission.label = submission.proba.astype(int)
+            submission.to_csv((path), index=True)
             return submission

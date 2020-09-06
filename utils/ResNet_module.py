@@ -4,9 +4,12 @@ import torchvision
 from torchvision import models, transforms
 
 class ResNet_module(nn.Module):
-    def __init__(self, output_dim, device='cpu'):
+    def __init__(self, output_dim, device='cpu', learn=False):
         super(ResNet_module, self).__init__()
         self.model = models.resnet18(pretrained=True)
+        if not learn:
+            for param in self.model.parameters():
+                param.requires_grad = False
         num_ftrs = self.model.fc.in_features
         self.model.fc = nn.Linear(num_ftrs, output_dim)
         self.model.to(device)
@@ -16,7 +19,7 @@ class ResNet_module(nn.Module):
         return emb.squeeze()
     
     @staticmethod
-    def transform(img_dim, device='cpu'):
+    def transform(img_dim):
         image_transform = torchvision.transforms.Compose(
             [
                 torchvision.transforms.Resize(
@@ -32,4 +35,4 @@ class ResNet_module(nn.Module):
                 ),
             ]
         )
-        return lambda img: image_transform(img).unsqueeze(dim=0).to(device)
+        return image_transform

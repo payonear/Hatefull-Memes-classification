@@ -27,4 +27,4 @@ class Unimodal_Concat(nn.Module):
         fc1 = self.dropout(F.relu(self.fc1(cat)))  
         pred = self.fc2(fc1)
         loss = self.loss_func(pred, label) if label is not None else None
-        return (pred, loss)
+        return (F.softmax(pred), loss)

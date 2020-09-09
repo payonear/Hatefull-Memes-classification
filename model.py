@@ -8,6 +8,7 @@ from pathlib import Path
 from tqdm import tqdm
 import numpy as np
 import random
+from sklearn. metrics import roc_auc_score, accuracy_score
 
 class HatefulMemesModel(pl.LightningModule):
     def __init__(self, hparams):
@@ -31,13 +32,16 @@ class HatefulMemesModel(pl.LightningModule):
         self.output_path.mkdir(exist_ok = True)
         self.trainer_params = self.__get_trainer_params()
 
-    def forward(self, img, txt, label):
-        return self.model(img, txt, label)
+    #def forward(self, img, txt, label):
+        #return self.model(img, txt, label)
+
+    def forward(self, txt, label):
+        return self.model(txt, label)
 
     def training_step(self, batch, batch_idx):
         device = self.hparams.get('device', 'cpu')
         _, loss = self.forward(
-            batch['image'].to(device),
+            #batch['image'].to(device),
             batch['text'].to(device),
             batch['label'].to(device)
         )
@@ -52,7 +56,7 @@ class HatefulMemesModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         device = self.hparams.get('device', 'cpu')
         _, loss = self.eval().forward(
-            batch['image'].to(device),
+            #batch['image'].to(device),
             batch['text'].to(device),
             batch['label'].to(device)
         )
@@ -153,11 +157,33 @@ class HatefulMemesModel(pl.LightningModule):
                 'logger', False)
         }
         return trainer_params
+    
+    @torch.no_grad()
+    def val_metrics(self):
+        device = self.hparams.get('device', 'cpu')
+        df = pd.DataFrame(index = self.val_dataset.sample_frame.id,
+                                columns = ['proba','label', 'pred'])
+        loader = self.val_dataloader()
+        for batch in tqdm(loader, total = len(loader)):
+            preds, _ = self.model.eval().to(device)(
+                    batch['image'].to(device), batch['text'].to(device))
+            if device=='cuda':
+                preds = preds.cpu().detach().numpy()
+            df.loc[batch['id'], 'proba'] = preds[:,1]
+            df.loc[batch['id'], 'label'] = batch['label']
+            df.loc[batch['id'], 'pred'] = preds.argmax(1)
+        df.proba = df.proba.astype(float)
+        df.label = df.label.astype(int)
+        df.pred = df.pred.astype(int)
+        auc_roc = roc_auc_score(df.label, df.proba)
+        acc = accuracy_score(df.label, df.pred)
+        print(f'AUC_ROC: {auc_roc}, Accuracy: {acc}')
 
     @torch.no_grad()
-    def make_submission(self, path):
+    def make_submission(self, path, device):
+        device = self.hparams.get('device', 'cpu')
         test_dataset = self.__build_dataset('test_path')
-        loader = DataLoader(self.test_dataset,
+        loader = DataLoader(test_dataset,
             batch_size = self.hparams.get('batch_size', 8),
             shuffle = False,
             num_workers = self.hparams.get('num_workers ', 4)
@@ -165,12 +191,14 @@ class HatefulMemesModel(pl.LightningModule):
         submission = pd.DataFrame(index = test_dataset.sample_frame.id,
                                 columns = ['proba','label'])
         for batch in tqdm(loader, total = len(loader)):
-            preds, _ = self.model.eval().to('cpu')(
-                batch['image'], batch['text']
+            preds, _ = self.model.eval()(
+                batch['image'].to(device), batch['text'].to(device)
             )
+            if device=='cuda':
+                preds = preds.cpu().detach().numpy()
             submission.loc[batch['id'], 'proba'] = preds[:,1]
-            submission.loc[batch['id'], 'label'] = preds.argmax(dim=1)
-            submission.proba = submission.proba.astype(float)
-            submission.label = submission.proba.astype(int)
-            submission.to_csv((path), index=True)
-            return submission
+            submission.loc[batch['id'], 'label'] = preds.argmax(1)
+        submission.proba = submission.proba.astype(float)
+        submission.label = submission.label.astype(int)
+        submission.to_csv((path), index=True)
+        return submission

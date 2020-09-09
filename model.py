@@ -32,11 +32,8 @@ class HatefulMemesModel(pl.LightningModule):
         self.output_path.mkdir(exist_ok = True)
         self.trainer_params = self.__get_trainer_params()
 
-    #def forward(self, img, txt, label):
-        #return self.model(img, txt, label)
-
-    def forward(self, txt, label):
-        return self.model(txt, label)
+    def forward(self, img, txt, label):
+        return self.model(img, txt, label)
 
     def training_step(self, batch, batch_idx):
         device = self.hparams.get('device', 'cpu')
@@ -48,15 +45,15 @@ class HatefulMemesModel(pl.LightningModule):
         return {'loss': loss}
 
     def training_epoch_end(self, outputs):
-            avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-            return {'avg_train_loss': avg_loss,
-                    'progress_bar': {'avg_train_loss': avg_loss},
-                    'log': {'avg_train_loss': avg_loss}
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        return {'avg_train_loss': avg_loss,
+                'progress_bar': {'avg_train_loss': avg_loss},
+                'log': {'avg_train_loss': avg_loss}
             }
     def validation_step(self, batch, batch_idx):
         device = self.hparams.get('device', 'cpu')
         _, loss = self.eval().forward(
-            #batch['image'].to(device),
+            batch['image'].to(device),
             batch['text'].to(device),
             batch['label'].to(device)
         )

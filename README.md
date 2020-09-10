@@ -1,1 +1,3 @@
 # Hatefull-Memes-classification
+Solution of Hatefull Memes classification problem. [Link to the competition](https://www.drivendata.org/competitions/64/hateful-memes/page/205/).
+Currently repo presents solution based on Unimodal_concat model architecture. Images and Text inputs are embedded with transfer learning technics (pretrained ResNet18 and BERT). Both embeddings dimensions may be configured by manipulating hidden state dimension of linear layer on the top of each module. Afterwards both embeddings are concatenated and additional two linear layers eventually allow to perform binary classification.

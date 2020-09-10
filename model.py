@@ -38,7 +38,7 @@ class HatefulMemesModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         device = self.hparams.get('device', 'cpu')
         _, loss = self.forward(
-            #batch['image'].to(device),
+            batch['image'].to(device),
             batch['text'].to(device),
             batch['label'].to(device)
         )
